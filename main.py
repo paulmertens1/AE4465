@@ -7,16 +7,15 @@ from import_data import df_test, df_train, operational_condition_names, sensor_n
 
 
 
-#######################
+################################
 
 # Part 1: Preventive Maintenance
 
-#######################
+################################
 
-
+#Extract lifetimes and get fitters
 
 lifetimes = df_train.groupby("engine")["cycle"].max().values
-plt.hist(lifetimes, bins=20, density=True, alpha=0.5, edgecolor="black", label="Lifetime data")
 
 fitters = {
     "Weibull_2P": Fit_Weibull_2P(failures=lifetimes, show_probability_plot=False),
@@ -24,11 +23,44 @@ fitters = {
     "Lognormal_2P": Fit_Lognormal_2P(failures=lifetimes, show_probability_plot=False),
     "Normal_2P": Fit_Normal_2P(failures=lifetimes, show_probability_plot=False),
 }
-# Determine the best distribution based on AIC
+
+# Plotting the fitted distributions
+x = np.linspace(min(lifetimes), max(lifetimes), 1000)
+
+for name, fit in fitters.items():
+    if name == "Weibull_2P":
+        dist = Weibull_Distribution(alpha=fit.alpha, beta=fit.beta)
+    elif name == "Lognormal_2P":
+        dist = Lognormal_Distribution(mu=fit.mu, sigma=fit.sigma)
+    elif name == "Exponential_1P":
+        dist = Exponential_Distribution(Lambda=fit.Lambda)
+    elif name == "Normal_2P":
+        dist = Normal_Distribution(mu=fit.mu, sigma=fit.sigma)
+    else:
+        continue  
+
+    y = dist.PDF(x)
+    plt.plot(x, y, label=f"{name}")
+
+plt.hist(lifetimes, bins=20, density=True, alpha=0.5, edgecolor="black", label="Lifetime data")
+plt.title("Histogram with PDFs of Fitted Distributions")
+plt.xlabel("Flight Cycles Until Failure")
+plt.ylabel("Probability Density")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+#plt.show()
+plt.savefig("pdf_fit_comparison.png")
+plt.close()
+
+
+# Determine the best distribution
+# check both AIC and BIC values
 best_fit_name = None
 best_fit_aic = float("inf")
 best_fit = None
 
+print("\n Comparison of AIC values")
 for name, fitter in fitters.items():
     aic_value = getattr(fitter, "AICc", getattr(fitter, "AIC", np.inf))
 
@@ -45,36 +77,33 @@ for attr in dir(best_fit):
         print(f"  {attr} = {getattr(best_fit, attr)}")
 
 
-x = np.linspace(min(lifetimes), max(lifetimes), 1000)
+print("\n Comparison based on BIC values:")
+best_fit_bic_name = None
+best_fit_bic_value = float("inf")
+for name, fitter in fitters.items():
+    bic_value = getattr(fitter, "BIC", np.inf)
+    print(f"{name} BIC: {bic_value}")
+    if bic_value < best_fit_bic_value:
+        best_fit_bic_value = bic_value
+        best_fit_bic_name = name
 
-for name, fit in fitters.items():
-    if name == "Weibull_2P":
-        dist = Weibull_Distribution(alpha=fit.alpha, beta=fit.beta)
-    elif name == "Lognormal_2P":
-        dist = Lognormal_Distribution(mu=fit.mu, sigma=fit.sigma)
-    elif name == "Exponential_1P":
-        dist = Exponential_Distribution(Lambda=fit.Lambda)
-    elif name == "Normal_2P":
-        dist = Normal_Distribution(mu=fit.mu, sigma=fit.sigma)
-    else:
-        continue  # skip unknown distributions
+print(f"\nBest distribution based on BIC: {best_fit_bic_name}")
 
-    y = dist.PDF(x)
-    plt.plot(x, y, label=f"{name}")
-
-plt.title("Histogram with PDFs of Fitted Distributions")
-plt.xlabel("Flight Cycles Until Failure")
-plt.ylabel("Probability Density")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
+# Hazard Function Calculation
+if best_fit_name == "Weibull_2P":
+    best_dist = Weibull_Distribution(alpha=best_fit.alpha, beta=best_fit.beta)
+elif best_fit_name == "Exponential_1P":
+    best_dist = Exponential_Distribution(Lambda=best_fit.Lambda)
+elif best_fit_name == "Lognormal_2P":
+    best_dist = Lognormal_Distribution(mu=best_fit.mu, sigma=best_fit.sigma)
+elif best_fit_name == "Normal_2P":
+    best_dist = Normal_Distribution(mu=best_fit.mu, sigma=best_fit.sigma)
 
 
-best_dist = Lognormal_Distribution(mu=best_fit.mu, sigma=best_fit.sigma)
 pdf_vals = best_dist.PDF(x)
 sf_vals = best_dist.SF(x)
-hazard_vals = np.where(sf_vals > 0, pdf_vals / sf_vals, np.nan) 
+hazard_vals =  pdf_vals / sf_vals
+
 plt.figure(figsize=(10, 6))
 plt.plot(x, hazard_vals, label=f"{best_fit_name} Hazard")
 plt.title(f"Hazard Function of {best_fit_name}")
@@ -83,16 +112,41 @@ plt.ylabel("Hazard Rate h(t)")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.show()
+#plt.show()
+plt.savefig("hazard_function.png")
+plt.close()
 
 
-Cp = 10000 # cost of preventive maintenance
-Cf = 100000 # cost of failure
-print(min(lifetimes))
-t_range =  np.arange(min(lifetimes), max(lifetimes), 1)
+# Cost Analysis for Preventive Maintenance
+Cp = 10000 # cost prevent
+Cf = 100000 # cost fail
+t_range =  np.arange(100, max(lifetimes), 1)
 S_t = best_dist.SF(t_range)
+print(f"Survival function S(t) at t = {t_range[23]}: {S_t[23]}")
 g_t = (Cp * S_t + Cf * (1 - S_t)) / t_range
 
 min_index = np.argmin(g_t)
 t_star = t_range[min_index]
 g_star = g_t[min_index]
+print(f"Optimal replacement time t* = {t_star} with minimum cost g(t*) = {g_star}")
+
+plt.figure(figsize=(10, 6))
+plt.plot(t_range, g_t, label='g(t): Avg. cost per cycle')
+plt.axvline(t_star, color='r', linestyle='--', label=f'Optimal t* = {t_star}')
+plt.xlabel('Replacement time t (flight cycles)')
+plt.ylabel('g(t): Expected cost per cycle')
+plt.title('Optimal Preventive Replacement Time')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+#plt.show()
+plt.savefig("g_of_t_cost_curve.png")
+plt.close()
+
+
+
+################################
+
+# Part 2: Predictive Maintenance
+
+################################
