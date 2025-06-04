@@ -145,8 +145,41 @@ plt.close()
 
 
 
-################################
+# Test the optimal replacement time on test data
 
-# Part 2: Predictive Maintenance
+test_lifetimes = df_test.groupby("engine")["cycle"].max().values
 
-################################
+
+Cp = 10000
+Cf = 100000
+
+costs = []
+
+for T_i in test_lifetimes:
+    if T_i >= t_star:
+        # Preventive replacement at t*, engine survived
+        cost = Cp
+    else:
+        # Engine failed before t*, pay failure cost
+        cost = Cf
+    costs.append(cost)
+
+average_cost = np.mean(costs)
+print(f"Average cost per engine in test set (using t* = {t_star}): {average_cost:.2f}")
+cost_per_cycle = average_cost / t_star
+print(f"Average cost per cycle: {cost_per_cycle:.2f}")
+
+
+plt.hist(test_lifetimes, bins=20, alpha=0.6, label="Test lifetimes")
+plt.axvline(t_star, color='red', linestyle='--', label=f"t* = {t_star}")
+plt.title("Test Set Engine Lifetimes with Preventive Replacement Cutoff")
+plt.xlabel("Cycles")
+plt.ylabel("Number of Engines")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.savefig("test_lifetimes_with_t_star.png")
+plt.close()
+
+#print(f"lifetimes in train set: {lifetimes}")
+#print(f"lifetimes in test set: {test_lifetimes}")
