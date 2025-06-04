@@ -4,15 +4,19 @@ import pandas as pd
 from reliability.Fitters import Fit_Weibull_2P, Fit_Exponential_1P, Fit_Lognormal_2P, Fit_Normal_2P
 from reliability.Distributions import Weibull_Distribution, Exponential_Distribution, Lognormal_Distribution, Normal_Distribution
 from import_data import df_test, df_train, operational_condition_names, sensor_names
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
 
 
 lifetimes = df_train.groupby("engine")["cycle"].max().values
 print(f"lifetimes in train set: {lifetimes}")
 
 
-print(df_train)
 
-engine_1_df = df_train[df_train['engine'] == 10]
+
+engine_1_df = df_train[df_train['engine'] == 1]
 
 # Drop index columns to get only sensor and operational data
 sensor_data = engine_1_df.drop(columns=['engine', 'cycle'])
@@ -43,7 +47,8 @@ def plot_sensor_opacity(df, sensors, cycle_col='cycle', engine_col='engine', alp
     plt.suptitle("Opacity Curves for All Engines (each line = 1 engine)", fontsize=18, y=1.02)
     plt.show()
 
-sensor_cols = [col for col in df_test.columns if col not in ['engine', 'cycle']]  # drop non-sensor columns if needed
-plot_sensor_opacity(df_test, sensors=sensor_cols, alpha=0.1)
+sensor_cols = [col for col in df_train.columns if col not in ['engine', 'cycle']]  # drop non-sensor columns if needed
+plot_sensor_opacity(df_train, sensors=sensor_cols, alpha=0.1)
 
-df_test = df_test.drop(columns=['engine', 'cycle','',''])  # drop non-sensor columns if needed
+df_train = df_train.drop(columns=['altitude','TRA','mach_nr', 'T2','P2','P15','epr','farB','Nf_dmd','PCNfR_dmd'])  # drop non-sensor columns if needed
+print(df_train.columns)
