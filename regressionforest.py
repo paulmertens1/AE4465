@@ -1,8 +1,7 @@
-
 import pandas as pd
 import numpy as np
 from import_data import df_train, df_test
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 
@@ -28,6 +27,7 @@ feature_cols = [
     'W31', 'W32'
 ]
 
+feature_cols_test = ['Nc', 'NRc', 'Ps30', 'T24','T30', 'T50','P30']
 
 X_train = df_train[feature_cols]
 y_train = df_train['RUL']
@@ -52,19 +52,27 @@ df_test_last['RUL'] = true_rul.values.flatten()
 X_test = df_test_last[feature_cols]
 y_test = df_test_last['RUL']
 
-# -------------------------------
-# Step 4: Train single decision tree
-# -------------------------------
-dt = DecisionTreeRegressor(max_depth=10, random_state=42)
-dt.fit(X_train, y_train)
 
 # -------------------------------
-# Step 5: Evaluate model
+# Step 4: Train the model Random forest
 # -------------------------------
-y_pred = dt.predict(X_test)
+
+rf = RandomForestRegressor(
+    n_estimators=200,
+    max_depth=20,
+    random_state=42,
+    n_jobs = -1
+)
+rf.fit(X_train, y_train)
+
+y_pred = rf.predict(X_test)
 
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 mae = mean_absolute_error(y_test, y_pred)
+print(f'RMSE: {rmse:.2f}')
+print(f'MAE: {mae:.2f}')
+# -------------------------------
+
 
 results = pd.DataFrame({
     'True RUL': y_test,
@@ -75,26 +83,16 @@ results_sort = results.sort_values(by='True RUL').reset_index(drop=True)
 
 
 plt.figure(figsize=(10, 6))
-plt.plot(results_sort.index, results_sort['True RUL'], label='True RUL', marker='o', linestyle='-', color='red')
-plt.plot(results_sort.index, results_sort['Predicted RUL'], label='Predicted RUL', marker='x', linestyle='--', color='black')
-plt.title('True vs Predicted RUL single Decision Tree')
+plt.plot(results_sort.index, results_sort['True RUL'], label='True RUL', marker='o', linestyle='-', color='blue')
+plt.plot(results_sort.index, results_sort['Predicted RUL'], label='Predicted RUL', marker='x', linestyle='--', color='orange')
+plt.title('True vs Predicted RUL random forest' )
 plt.xlabel('Engines (sorted by True RUL)')
 plt.ylabel('Remaining Useful Life (RUL)')
 plt.legend()
 plt.grid()
-plt.savefig('rul_prediction_plot_dt.png')
+plt.savefig('rul_prediction_plot_rf.png')
 plt.show()
 
-
-
-
-print(f"Decision Tree Regressor Results:")
-print(f"RMSE: {rmse:.2f}")
-print(f"MAE:  {mae:.2f}")
-
-# -------------------------------
-# Step 6: Visualize predictions
-# -------------------------------
 
 z = np.polyfit(y_test, y_pred, 1)
 p = np.poly1d(z)
@@ -104,8 +102,8 @@ plt.plot([0, max(y_test.max(), y_pred.max())], [0, max(y_test.max(), y_pred.max(
 plt.plot(y_test, p(y_test), 'b-', label='Fit Line')
 plt.xlabel("True RUL")
 plt.ylabel("Predicted RUL")
-plt.title("Decision Tree: Predicted vs True RUL")
-plt.savefig('dt_predicted_vs_true_rul.png')
+plt.title("Random Forest: Predicted vs True RUL")
 plt.grid(True)
 plt.tight_layout()
+plt.savefig('rf_predicted_vs_true_rul.png')
 plt.show()
