@@ -82,7 +82,7 @@ plt.xlabel('Engines (sorted by True RUL)')
 plt.ylabel('Remaining Useful Life (RUL)')
 plt.legend()
 plt.grid()
-plt.savefig('rul_prediction_plot_dt.png')
+plt.savefig('dt_rul_prediction_plot.png')
 plt.show()
 
 

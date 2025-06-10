@@ -1,22 +1,16 @@
+import xgboost as xgb
+from xgboost import XGBRegressor
 import pandas as pd
 import numpy as np
 from import_data import df_train, df_test
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
-
-# -------------------------------
-# Step 1: Compute RUL for training data
-# -------------------------------
 
 df_train['max_cycle'] = df_train.groupby('engine')['cycle'].transform('max')
 df_train['RUL'] = df_train['max_cycle'] - df_train['cycle']
 df_train['RUL'] = df_train['RUL'].clip(upper=125)
 df_train.drop(columns='max_cycle', inplace=True)
 
-# -------------------------------
-# Step 2: Feature selection
-# -------------------------------
 
 feature_cols = [
     'T24', 'T30', 'T50',
@@ -32,46 +26,27 @@ feature_cols_test = ['Nc', 'NRc', 'Ps30', 'T24','T30', 'T50','P30']
 X_train = df_train[feature_cols]
 y_train = df_train['RUL']
 
-# -------------------------------
-# Step 3: Prepare test data
-# -------------------------------
-# Predict RUL only for the last cycle of each engine in the test set
 df_test_last = df_test.groupby('engine').tail(1).copy()
-
-# You will need to load true RULs from a separate file like RUL_FD001.txt
-# Example (adjust the path as needed):
 true_rul = pd.read_csv(
     'CMAPSSData/RUL_FD001.txt',
     header=None
 )
-
-
 
 df_test_last['RUL'] = true_rul.values.flatten()
 
 X_test = df_test_last[feature_cols]
 y_test = df_test_last['RUL']
 
+xg = XGBRegressor(objective='reg:squarederror', n_estimators=100, learning_rate=0.1, max_depth=6)
+xg_fit = xg.fit(X_train, y_train)
 
-# -------------------------------
-# Step 4: Train the model Random forest
-# -------------------------------
+y_pred = xg_fit.predict(X_test)
 
-rf = RandomForestRegressor(
-    n_estimators=200,
-    max_depth=20,
-    random_state=42,
-    n_jobs = -1
-)
-rf.fit(X_train, y_train)
-
-y_pred = rf.predict(X_test)
 
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 mae = mean_absolute_error(y_test, y_pred)
 print(f'RMSE: {rmse:.2f}')
 print(f'MAE: {mae:.2f}')
-# -------------------------------
 
 
 results = pd.DataFrame({
@@ -83,14 +58,14 @@ results_sort = results.sort_values(by='True RUL').reset_index(drop=True)
 
 
 plt.figure(figsize=(10, 6))
-plt.plot(results_sort.index, results_sort['True RUL'], label='True RUL', marker='o', linestyle='-', color='blue')
-plt.plot(results_sort.index, results_sort['Predicted RUL'], label='Predicted RUL', marker='x', linestyle='--', color='orange')
-plt.title('True vs Predicted RUL random forest' )
+plt.plot(results_sort.index, results_sort['True RUL'], label='True RUL', marker='o', linestyle='-', color='green')
+plt.plot(results_sort.index, results_sort['Predicted RUL'], label='Predicted RUL', marker='x', linestyle='--', color='purple')
+plt.title('True vs Predicted RUL xg Boost' )
 plt.xlabel('Engines (sorted by True RUL)')
 plt.ylabel('Remaining Useful Life (RUL)')
 plt.legend()
 plt.grid()
-plt.savefig('rf_rul_prediction_plot.png')
+plt.savefig('xg_rul_prediction_plot.png')
 plt.show()
 
 
@@ -102,8 +77,8 @@ plt.plot([0, max(y_test.max(), y_pred.max())], [0, max(y_test.max(), y_pred.max(
 plt.plot(y_test, p(y_test), 'b-', label='Fit Line')
 plt.xlabel("True RUL")
 plt.ylabel("Predicted RUL")
-plt.title("Random Forest: Predicted vs True RUL")
+plt.title("XG Boost: Predicted vs True RUL")
 plt.grid(True)
 plt.tight_layout()
-plt.savefig('rf_predicted_vs_true_rul.png')
+plt.savefig('xg_predicted_vs_true_rul.png')
 plt.show()
