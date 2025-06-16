@@ -4,8 +4,7 @@ import pandas as pd
 from reliability.Fitters import Fit_Weibull_2P, Fit_Exponential_1P, Fit_Lognormal_2P, Fit_Normal_2P
 from reliability.Distributions import Weibull_Distribution, Exponential_Distribution, Lognormal_Distribution, Normal_Distribution
 from import_data import df_test, df_train, operational_condition_names, sensor_names
-
-
+from numpy import trapz
 
 ################################
 
@@ -122,16 +121,28 @@ Cp = 10000 # cost prevent
 Cf = 100000 # cost fail
 t_range =  np.arange(100, max(lifetimes), 1)
 S_t = best_dist.SF(t_range)
-print(f"Survival function S(t) at t = {t_range[23]}: {S_t[23]}")
-g_t = (Cp * S_t + Cf * (1 - S_t)) / t_range
+from numpy import trapz, linspace, array
 
-min_index = np.argmin(g_t)
+g_t_list = []
+t_range = np.arange(100, max(lifetimes), 1)
+
+
+for i, t in enumerate(t_range):
+    u_vals = linspace(0, t, 500)
+    s_vals = best_dist.SF(u_vals, show_plot=False)
+    e_time = trapz(s_vals, u_vals)
+
+    SF_t = S_t[i]
+    g = (Cp * SF_t + Cf * (1 - SF_t)) / e_time
+    g_t_list.append(g)
+
+min_index = np.argmin(g_t_list)
 t_star = t_range[min_index]
-g_star = g_t[min_index]
+g_star = g_t_list[min_index]
 print(f"Optimal replacement time t* = {t_star} with minimum cost g(t*) = {g_star}")
 
 plt.figure(figsize=(10, 6))
-plt.plot(t_range, g_t, label='g(t): Avg. cost per cycle')
+plt.plot(t_range, g_t_list, label='g(t): Avg. cost per cycle')
 plt.axvline(t_star, color='r', linestyle='--', label=f'Optimal t* = {t_star}')
 plt.xlabel('Replacement time t (flight cycles)')
 plt.ylabel('g(t): Expected cost per cycle')
@@ -142,44 +153,3 @@ plt.tight_layout()
 #plt.show()
 plt.savefig("g_of_t_cost_curve.png")
 plt.close()
-
-
-
-# Test the optimal replacement time on test data
-
-test_lifetimes = df_test.groupby("engine")["cycle"].max().values
-
-
-Cp = 10000
-Cf = 100000
-
-costs = []
-
-for T_i in test_lifetimes:
-    if T_i >= t_star:
-        # Preventive replacement at t*, engine survived
-        cost = Cp
-    else:
-        # Engine failed before t*, pay failure cost
-        cost = Cf
-    costs.append(cost)
-
-average_cost = np.mean(costs)
-print(f"Average cost per engine in test set (using t* = {t_star}): {average_cost:.2f}")
-cost_per_cycle = average_cost / t_star
-print(f"Average cost per cycle: {cost_per_cycle:.2f}")
-
-
-plt.hist(test_lifetimes, bins=20, alpha=0.6, label="Test lifetimes")
-plt.axvline(t_star, color='red', linestyle='--', label=f"t* = {t_star}")
-plt.title("Test Set Engine Lifetimes with Preventive Replacement Cutoff")
-plt.xlabel("Cycles")
-plt.ylabel("Number of Engines")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.savefig("test_lifetimes_with_t_star.png")
-plt.close()
-
-#print(f"lifetimes in train set: {lifetimes}")
-#print(f"lifetimes in test set: {test_lifetimes}")

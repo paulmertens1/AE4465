@@ -4,6 +4,8 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV, train_test_split
+
 
 from import_data import df_train, df_test
 import matplotlib.pyplot as plt
@@ -37,6 +39,43 @@ df_test_last = df_test.groupby('engine').tail(1).copy()
 X_train = df_train[feature_cols]
 y_train = df_train['RUL']
 
+
+
+
+# Split into training and validation sets
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+
+# --- Hyperparameter tuning ---
+
+# Decision Tree
+dt_params = {'max_depth': [3, 5, 10, None]}
+dt_grid = GridSearchCV(DecisionTreeRegressor(), dt_params, cv=3, scoring='neg_mean_squared_error')
+dt_grid.fit(X_train, y_train)
+best_dt = dt_grid.best_estimator_
+
+# Random Forest
+rf_params = {'n_estimators': [50, 100], 'max_depth': [5, 10, None]}
+rf_grid = GridSearchCV(RandomForestRegressor(), rf_params, cv=3, scoring='neg_mean_squared_error')
+rf_grid.fit(X_train, y_train)
+best_rf = rf_grid.best_estimator_
+
+# XGBoost
+xgb_params = {'n_estimators': [50, 100], 'max_depth': [3, 5, 10]}
+xgb_grid = GridSearchCV(XGBRegressor(), xgb_params, cv=3, scoring='neg_mean_squared_error')
+xgb_grid.fit(X_train, y_train)
+best_xgb = xgb_grid.best_estimator_
+
+# --- Evaluation on validation set ---
+for model, name in zip([best_dt, best_rf, best_xgb], ['DT', 'RF', 'XG']):
+    y_pred = model.predict(X_val)
+    print(f"{name} - RMSE: {np.sqrt(mean_squared_error(y_val, y_pred)):.2f}, "
+          f"MAE: {mean_absolute_error(y_val, y_pred):.2f}, "
+          f"R²: {r2_score(y_val, y_pred):.2f}")
+    # hier de beste hyperparameters printen
+
+
+
+
 true_rul = pd.read_csv(
     'CMAPSSData/RUL_FD001.txt',
     header=None
@@ -52,6 +91,8 @@ y_test = df_test_last['RUL']
 
 ############
 
+# dit deel kan weg 
+
 # Single Decision Tree Regressor
 dt = DecisionTreeRegressor(max_depth=10, random_state=42)
 dt.fit(X_train, y_train)
@@ -65,6 +106,7 @@ rf.fit(X_train, y_train)
 xg = XGBRegressor(objective='reg:squarederror', n_estimators=50, learning_rate=0.1, max_depth=6,random_state=42)
 xg_fit = xg.fit(X_train, y_train)
 
+# hier voor predict best_dt etc zetten om de beste hyperparameters te gebruiken
 dt_pred = dt.predict(X_test)
 rf_pred = rf.predict(X_test)
 xg_pred = xg_fit.predict(X_test)
