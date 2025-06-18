@@ -116,6 +116,11 @@ mae_xg = mean_absolute_error(y_test, xg_pred)
 r2_xg = r2_score(y_test, xg_pred)
 print(f'XGBoost - RMSE: {rmse_xg}, MAE: {mae_xg}, R2: {r2_xg}')
 
+
+####################
+# Data visualization
+####################
+
 results = pd.DataFrame({
     'True RUL': y_test,
     'Predicted RUL DT': dt_pred,

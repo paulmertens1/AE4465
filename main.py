@@ -6,7 +6,7 @@ from reliability.Distributions import Weibull_Distribution, Exponential_Distribu
 from import_data import df_train
 
 
-#lifetimes uit de training data halen
+# lifetimes uit de training data halen
 # distributions fitten op de lifetimes
 
 lifetimes = df_train.groupby("engine")["cycle"].max().values
@@ -90,7 +90,8 @@ elif best_fit_name == "Normal_2P":
     best_dist = Normal_Distribution(mu=best_fit.mu, sigma=best_fit.sigma)
 
 # hazard functie iets eerder berekenen dan bij de histogram
-x = np.linspace(100, max(lifetimes), 1000)
+# dan kan je het vlak deel nog zien 
+x = np.linspace(80, max(lifetimes), 1000)
 pdf_vals = best_dist.PDF(x)
 sf_vals = best_dist.SF(x) # SF = 1-F(x)
 hazard_vals =  pdf_vals / sf_vals
