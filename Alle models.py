@@ -39,7 +39,7 @@ y_train = df_train['RUL']
 # Model tunning
 ###############
 
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=1)
 tuning = False 
 if tuning == True:
 # Decision Tree
@@ -87,11 +87,11 @@ y_test = df_test_last['RUL']
 
 # Single Decision Tree Regressor, Random Forest Regressor, and XGBoost Regressor
 # take the best hyperparameters from the tuning step
-dt = DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20, min_samples_leaf=1)
+dt = DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20, min_samples_leaf=1, random_state=1)
 dt.fit(X_train, y_train)
-rf = RandomForestRegressor(n_estimators=100, max_depth=10, min_samples_leaf=5, n_jobs = -1)
+rf = RandomForestRegressor(n_estimators=100, max_depth=10, min_samples_leaf=5, n_jobs = -1,random_state=1)
 rf.fit(X_train, y_train)
-xg = XGBRegressor(objective='reg:squarederror', n_estimators=50, learning_rate=0.1, max_depth=6)
+xg = XGBRegressor(objective='reg:squarederror', n_estimators=50, learning_rate=0.1, max_depth=6,random_state=1)
 xg_fit = xg.fit(X_train, y_train)
 
 #add a bias if you want to ensure conservative predictions
@@ -142,3 +142,27 @@ plt.legend()
 plt.grid()
 plt.savefig('comb_rul_prediction_plot.png')
 plt.show()
+
+
+# Checking which sensor is the most important
+models = {
+    'Decision Tree': dt,
+    'Random Forest': rf,
+    'XGBoost': xg_fit
+}
+for name in models:
+    importances = models[name].feature_importances_
+    indices = np.argsort(importances)[::-1]
+    print(f"\n{name} Feature Importances greater than 5%:")
+    for i in indices:
+        if importances[i] > 0.05:
+            print(f"{feature_cols[i]}: {importances[i]:.4f}")
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(importances)), importances[indices], align='center')
+    plt.xticks(range(len(importances)), [feature_cols[i] for i in indices], rotation=45)
+    plt.title(f'{name} Feature Importances')
+    plt.xlabel('Features')
+    plt.ylabel('Importance')
+    plt.tight_layout()
+    plt.savefig(f'{name}_feature_importances.png')
+    plt.show()
