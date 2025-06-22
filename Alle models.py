@@ -1,3 +1,5 @@
+# Gemaakt door Paul Mertens (5261406) en Mats Thijssen (4954114)
+
 import xgboost as xgb
 from xgboost import XGBRegressor
 from sklearn.tree import DecisionTreeRegressor
