@@ -3,16 +3,11 @@ import numpy as np
 import pandas as pd
 from reliability.Fitters import Fit_Weibull_2P, Fit_Exponential_1P, Fit_Lognormal_2P, Fit_Normal_2P
 from reliability.Distributions import Weibull_Distribution, Exponential_Distribution, Lognormal_Distribution, Normal_Distribution
-from import_data import df_test, df_train, operational_condition_names, sensor_names
-from numpy import trapz
+from import_data import df_train
 
-################################
 
-# Part 1: Preventive Maintenance
-
-################################
-
-#Extract lifetimes and get fitters
+# lifetimes uit de training data halen
+# distributions fitten op de lifetimes
 
 lifetimes = df_train.groupby("engine")["cycle"].max().values
 
@@ -23,7 +18,7 @@ fitters = {
     "Normal_2P": Fit_Normal_2P(failures=lifetimes, show_probability_plot=False),
 }
 
-# Plotting the fitted distributions
+# histogram plotten met de fitted distributions
 x = np.linspace(min(lifetimes), max(lifetimes), 1000)
 
 for name, fit in fitters.items():
@@ -53,8 +48,9 @@ plt.savefig("pdf_fit_comparison.png")
 plt.close()
 
 
-# Determine the best distribution
-# check both AIC and BIC values
+# AIC en BIC vergelijken 
+# dit was eigenlijk al gedaan in de fitters, daar hebben we ook de log-likelidhood en AD tests
+#maarja nu krijgen we ook de bic en aic allemaal in een keer
 best_fit_name = None
 best_fit_aic = float("inf")
 best_fit = None
@@ -69,14 +65,9 @@ for name, fitter in fitters.items():
         best_fit_name = name
         best_fit = fitter
 
-print("\nBest distribution based on AIC:")
-print(best_fit_name)
-for attr in dir(best_fit):
-    if not attr.startswith("_") and isinstance(getattr(best_fit, attr), (int, float)):
-        print(f"  {attr} = {getattr(best_fit, attr)}")
+print(f"\nBest distribution based on AIC:{ best_fit_name}")
 
-
-print("\n Comparison based on BIC values:")
+print("\n Comparison of BIC values:")
 best_fit_bic_name = None
 best_fit_bic_value = float("inf")
 for name, fitter in fitters.items():
@@ -88,7 +79,7 @@ for name, fitter in fitters.items():
 
 print(f"\nBest distribution based on BIC: {best_fit_bic_name}")
 
-# Hazard Function Calculation
+# Hazard Function berekenen voor de beste fit
 if best_fit_name == "Weibull_2P":
     best_dist = Weibull_Distribution(alpha=best_fit.alpha, beta=best_fit.beta)
 elif best_fit_name == "Exponential_1P":
@@ -98,11 +89,13 @@ elif best_fit_name == "Lognormal_2P":
 elif best_fit_name == "Normal_2P":
     best_dist = Normal_Distribution(mu=best_fit.mu, sigma=best_fit.sigma)
 
-
+# hazard functie iets eerder berekenen dan bij de histogram
+# dan kan je het vlak deel nog zien 
+x = np.linspace(80, max(lifetimes), 1000)
 pdf_vals = best_dist.PDF(x)
-sf_vals = best_dist.SF(x)
+sf_vals = best_dist.SF(x) # SF = 1-F(x)
 hazard_vals =  pdf_vals / sf_vals
-
+# en plotten hazard functie
 plt.figure(figsize=(10, 6))
 plt.plot(x, hazard_vals, label=f"{best_fit_name} Hazard")
 plt.title(f"Hazard Function of {best_fit_name}")
@@ -116,31 +109,30 @@ plt.savefig("hazard_function.png")
 plt.close()
 
 
-# Cost Analysis for Preventive Maintenance
+# Average Cost per Cycle berekenen
 Cp = 10000 # cost prevent
 Cf = 100000 # cost fail
 t_range =  np.arange(100, max(lifetimes), 1)
 S_t = best_dist.SF(t_range)
-from numpy import trapz, linspace, array
-
 g_t_list = []
-t_range = np.arange(100, max(lifetimes), 1)
 
-
+#gt berekenen voor elke t
 for i, t in enumerate(t_range):
-    u_vals = linspace(0, t, 500)
+    u_vals = np.linspace(0, t, 500)
     s_vals = best_dist.SF(u_vals, show_plot=False)
-    e_time = trapz(s_vals, u_vals)
+    e_time = np.trapezoid(s_vals, u_vals)
 
     SF_t = S_t[i]
     g = (Cp * SF_t + Cf * (1 - SF_t)) / e_time
     g_t_list.append(g)
 
+# minimum g(t) vinden
 min_index = np.argmin(g_t_list)
 t_star = t_range[min_index]
 g_star = g_t_list[min_index]
-print(f"Optimal replacement time t* = {t_star} with minimum cost g(t*) = {g_star}")
+print(f"Optimal replacement time t*= {t_star} with minimum cost g(t*) = {g_star}")
 
+#plotten van g(t) en t*
 plt.figure(figsize=(10, 6))
 plt.plot(t_range, g_t_list, label='g(t): Avg. cost per cycle')
 plt.axvline(t_star, color='r', linestyle='--', label=f'Optimal t* = {t_star}')
@@ -153,3 +145,12 @@ plt.tight_layout()
 #plt.show()
 plt.savefig("g_of_t_cost_curve.png")
 plt.close()
+
+
+print("Nog wat dubbel checks van dingen")
+print(np.mean(lifetimes))
+print(np.exp(best_fit.mu)) #mean van distribution in de buurt van lifetimes mean
+print(f"cost average between 0 to t* ={g_star*t_star}")
+print(S_t[t_star-100])
+print(S_t[t_star-100]*10000 + (1 - S_t[t_star-100]) * 100000)  
+# kosten average lijken te kloppen met de g(t) kosten

@@ -55,7 +55,7 @@ y_test = df_test_last['RUL']
 # -------------------------------
 # Step 4: Train single decision tree
 # -------------------------------
-dt = DecisionTreeRegressor(max_depth=10, random_state=42)
+dt = DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20, min_samples_leaf=1, random_state=1)
 dt.fit(X_train, y_train)
 
 # -------------------------------

@@ -37,7 +37,7 @@ df_test_last['RUL'] = true_rul.values.flatten()
 X_test = df_test_last[feature_cols]
 y_test = df_test_last['RUL']
 
-xg = XGBRegressor(objective='reg:squarederror', n_estimators=100, learning_rate=0.1, max_depth=6)
+xg = XGBRegressor(objective='reg:squarederror', n_estimators=50, learning_rate=0.1, max_depth=6,random_state=1)
 xg_fit = xg.fit(X_train, y_train)
 
 y_pred = xg_fit.predict(X_test)
